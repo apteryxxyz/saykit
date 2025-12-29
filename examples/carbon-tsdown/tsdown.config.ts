@@ -1,5 +1,3 @@
-Error.stackTraceLimit = 100;
-
 import { defineConfig } from 'tsdown';
 import saykit from 'unplugin-saykit/rolldown';
 

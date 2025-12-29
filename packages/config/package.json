@@ -20,11 +20,10 @@
   "dependencies": {
     "@commander-js/extra-typings": "^14.0.0",
     "@saykit/babel-plugin": "workspace:*",
-    "arktype": "^2.1.28",
     "commander": "^14.0.2",
     "neverthrow": "^8.2.0",
     "picomatch": "^4.0.3",
-    "zod": "^4.1.13"
+    "zod": "^4.2.1"
   },
   "peerDependencies": {
     "typescript": "*"

@@ -3,7 +3,6 @@ import { Locale } from '@buape/carbon';
 const ALLOWED_LOCALES = Object.values(Locale) as string[];
 
 export function combineCommandOptions(
-  // biome-ignore lint/suspicious/noExplicitAny: allow to be anything
   mappedOptions: Record<string, any>,
   baseLocale: string,
 ) {

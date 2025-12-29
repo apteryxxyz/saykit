@@ -1,17 +1,30 @@
 import { mf1ToMessage } from '@messageformat/icu-messageformat-1';
 import type {
-  Awaitable,
   Disallow,
   NumeralOptions,
   SelectOptions,
+  Tuple,
 } from './types.js';
 
-export namespace SayKit {
+export namespace Say {
   export type Messages = { [key: string]: string };
-  export type Loader = (locale: string) => Awaitable<Messages>;
+
+  export type Loader<Locale extends string> = (
+    locale: Locale,
+  ) => Messages | Promise<Messages>;
+
+  export type Options<
+    Locale extends string,
+    Loader extends Say.Loader<Locale> | undefined,
+  > = {
+    locales: Locale[];
+  } & (
+    | { messages: Record<Locale, Messages>; loader?: Loader }
+    | { messages?: Partial<Record<Locale, Messages>>; loader: Loader }
+  );
 }
 
-export interface SayKit {
+export interface Say {
   // ===== Macros ===== //
 
   /**
@@ -39,48 +52,32 @@ export interface SayKit {
    * @param descriptor Object containing optional `id` and `context` properties
    * @remark This is a macro and must be used with the relevant saykit plugin
    */
-  (descriptor: { id?: string; context?: string }): SayKit;
+  (descriptor: { id?: string; context?: string }): Say;
 }
 
-export type ReadonlySayKit = SayKit & {
-  [K in
-    | 'load'
-    | 'assign'
-    | 'activate'
-    | 'clone'
-    | 'map'
-    | 'reduce' as K]: never;
-};
+export type ReadonlySay<
+  Locale extends string = string,
+  Loader extends Say.Loader<Locale> | undefined =
+    | Say.Loader<Locale>
+    | undefined,
+> = Omit<Say<Locale, Loader>, 'activate' | 'load' | 'assign'>;
 
-// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: false
-export class SayKit {
-  #loaders: Record<string, SayKit.Loader>;
-  #cache: Map<string, SayKit.Messages>;
-  #active: string | undefined;
+export class Say<
+  Locale extends string = string,
+  Loader extends Say.Loader<Locale> | undefined =
+    | Say.Loader<Locale>
+    | undefined,
+> {
+  #locales: Locale[];
+  #loader?: Loader;
+  #messages: Map<Locale, Say.Messages>;
+  #active: Locale | undefined;
 
-  /**
-   * Create a new SayKit instance.
-   *
-   * @param loaders A record of locale identifiers mapped to message loaders.
-   */
-  constructor(loaders: Record<string, SayKit.Loader>) {
-    this.#loaders = loaders;
-    this.#cache = new Map();
-    this.#active = undefined;
-
-    // Allow these properties to be spread into other objects
-    Object.defineProperty(this, 'locale', {
-      ...Object.getOwnPropertyDescriptor(SayKit.prototype, ' locale'),
-      enumerable: true,
-    });
-    Object.defineProperty(this, 'locales', {
-      ...Object.getOwnPropertyDescriptor(SayKit.prototype, ' locales'),
-      enumerable: true,
-    });
-    Object.defineProperty(this, 'messages', {
-      ...Object.getOwnPropertyDescriptor(SayKit.prototype, ' messages'),
-      enumerable: true,
-    });
+  constructor(options: Say.Options<Locale, Loader>) {
+    this.#locales = options.locales;
+    this.#loader = options.loader;
+    this.#messages = new Map();
+    if (options.messages) this.assign(options.messages);
   }
 
   /**
@@ -88,60 +85,82 @@ export class SayKit {
    *
    * @throws If no locale is active
    */
-  declare locale: string;
-  get ' locale'() {
-    if (this.#active) return this.#active;
-    throw new Error('No locale activated');
+  get locale() {
+    if (!this.#active) throw new Error('No active locale');
+    return this.#active;
   }
 
   /**
-   * All available locales.
+   * All available messages mapped by locale.
+   *
+   * @throws If no locale is active
+   * @throws If no messages are available for the active locale
    */
-  declare locales: string[];
-  get ' locales'() {
-    return Object.keys(this.#loaders);
+  get messages() {
+    if (!this.#messages.has(this.locale))
+      throw new Error('No messages loaded for locale');
+    return this.#messages.get(this.locale)!;
   }
 
   /**
    * Loads messages for the given locales.
    * If no locales are provided, all available locales are loaded.
+   * Requires a {@link Say.Loader} to be provided.
+   * If `loader` returns a promise, so will this method.
    *
-   * @param locales Locales to load messages for, defaults to {@link SayKit.locales}
+   * @param locales Locales to load messages for, defaults to {@link Say.locales}
+   * @returns This
    */
-  async load(...locales: string[]) {
+  load(...locales: Locale[]) {
     if (Object.isFrozen(this))
-      throw new TypeError('Cannot load messages for an immutable SayKit');
-    if (locales.length === 0) locales = this.locales;
+      throw new Error('Cannot load messages on a frozen Say');
+    if (locales.length === 0) locales = this.#locales;
+
+    const tasks: Promise<unknown>[] = [];
     for (const locale of locales) {
-      if (this.#cache.has(locale)) continue;
-      const messages = await this.#loaders[locale]?.(locale);
-      if (messages) this.assign(locale, messages);
+      if (this.#messages.has(locale)) continue;
+      if (!this.#loader)
+        throw new Error('No loader provided, cannot load messages');
+
+      const result = this.#loader(locale);
+      if (result instanceof Promise) {
+        const task = result.then((m) => this.assign(locale, m));
+        tasks.push(task);
+      } else {
+        this.assign(locale, result);
+      }
     }
+
+    return tasks.length > 0 ? Promise.all(tasks).then(() => this) : this;
   }
 
+  /**
+   * Manually bulk assign messages.
+   *
+   * @param messages Messages map to assign
+   */
+  assign(messages: Partial<Record<Locale, Say.Messages>>): this;
   /**
    * Manually assign messages to a locale.
    *
    * @param locale Locale to assign messages to
    * @param messages Messages to assign
+   * @returns This
    */
-  assign(locale: string, messages: SayKit.Messages) {
+  assign(locale: Locale, messages: Say.Messages): this;
+  assign(
+    localeOrMessages: Locale | Partial<Record<Locale, Say.Messages>>,
+    maybeMessages?: Say.Messages,
+  ) {
     if (Object.isFrozen(this))
-      throw new TypeError('Cannot assign messages to an immutable SayKit');
-    this.#cache.set(locale, messages);
-    this.#loaders[locale] = () => messages;
-  }
-
-  /**
-   * Messages for the currently active locale.
-   *
-   * @throws If no locale is active
-   * @throws If no messages are available for the active locale
-   */
-  declare messages: SayKit.Messages;
-  get ' messages'() {
-    if (this.#cache.has(this.locale)) return this.#cache.get(this.locale)!;
-    throw new Error('No messages loaded for locale');
+      throw new Error('Cannot assign messages on a frozen Say');
+    if (typeof localeOrMessages === 'string') {
+      this.#messages.set(localeOrMessages, maybeMessages!);
+    } else {
+      for (const locale in localeOrMessages)
+        this.#messages.set(locale, localeOrMessages[locale]!);
+    }
+    return this;
   }
 
   /**
@@ -151,72 +170,96 @@ export class SayKit {
    * @returns This
    * @throws If locale is not available
    */
-  activate(locale: string) {
+  activate(locale: Locale) {
     if (Object.isFrozen(this))
-      throw new TypeError('Cannot change locale of an immutable SayKit');
-    if (!this.#cache.has(locale))
-      throw new Error(`No messages loaded for locale '${locale}'`);
+      throw new Error('Cannot activate locale on a frozen Say');
+    if (!this.#messages.has(locale))
+      throw new Error('No messages loaded for locale');
+    // const currentLocale = this.#active;
     this.#active = locale;
+    // this.emit('localeChange', locale, currentLocale);
     return this;
   }
 
   /**
-   * Creates a clone of the SayKit instance, with the same locales and messages.
+   * Creates a clone of the Say instance, with the same locales and messages.
    *
-   * @returns A clone of the SayKit instance
+   * @returns A clone of the Say instance
    */
   clone() {
-    if (Object.isFrozen(this))
-      throw new TypeError('Cannot clone an immutable SayKit');
-    const clone = new SayKit(this.#loaders);
-    clone.#cache = this.#cache;
-    clone.#active = this.#active;
-    return clone as this;
+    return new Say({
+      locales: this.#locales,
+      messages: Object.fromEntries(this.#messages) as any,
+      loader: this.#loader,
+    }) as unknown as this;
   }
 
-  /**
-   * Freezes the SayKit instance, preventing further modifications.
-   *
-   * @returns A readonly SayKit instance
-   */
   freeze() {
-    return Object.freeze(this) as unknown as ReadonlySayKit;
+    return Object.freeze(this) as ReadonlySay<Locale, Loader>;
   }
 
   /**
-   * Calls a defined callback function on each locale, passing the SayKit instance and locale to the callback.
+   * Calls a defined callback function on each locale, passing the Say instance and locale to the callback.
    *
    * @param callback Callback function to call on each locale
    */
-  map<T>(callback: (say: ReturnType<SayKit['freeze']>, locale: string) => T) {
-    if (Object.isFrozen(this))
-      throw new TypeError('Cannot map over an immutable SayKit');
-    return this.locales.map((locale) => {
-      const say = this.clone().activate(locale).freeze();
-      return callback(say, locale);
-    });
+  map<T>(
+    callbackfn: (
+      value: [this, Locale],
+      index: number,
+      array: [this, Locale][],
+    ) => T,
+  ) {
+    return this.#locales
+      .map((l) => [this.clone().activate(l), l] satisfies Tuple)
+      .map(callbackfn);
   }
 
   /**
-   * Calls the specified callback function for all the elements in an array, passing the SayKit instance and locale to the callback.
+   * Calls the specified callback function for all the elements in an array, passing the Say instance and locale to the callback.
    *
    * @param callback Callback function to call for each element
    * @param initial Initial value to use as the first argument to the first call of the callback
    */
   reduce<T>(
-    callback: (
-      say: ReturnType<SayKit['freeze']>,
-      locale: string,
-      accumulator: T,
+    callbackfn: (
+      previousValue: T,
+      currentValue: [this, Locale],
+      currentIndex: number,
+      array: [this, Locale][],
     ) => T,
-    initial: T,
+    initialValue: T,
   ) {
-    if (Object.isFrozen(this))
-      throw new TypeError('Cannot reduce over an immutable SayKit');
-    return this.locales.reduce((acc, locale) => {
-      const say = this.clone().activate(locale).freeze();
-      return callback(say, locale, acc);
-    }, initial);
+    return this.#locales
+      .map((l) => [this.clone().activate(l), l] satisfies Tuple)
+      .reduce(callbackfn, initialValue);
+  }
+
+  *[Symbol.iterator]() {
+    for (const l of this.#locales) {
+      yield [this.clone().activate(l), l] as const;
+    }
+  }
+
+  /**
+   * Matches the best locale from a list of guesses.
+   *
+   * @param guesses List of locale guesses
+   *
+   * @returns The best matching locale, or the first locale if no matches are found
+   */
+  match(guesses: string[]) {
+    for (const guess of guesses) {
+      if (this.#locales.includes(guess as Locale)) return guess;
+    }
+
+    for (const guess of guesses) {
+      const prefix = guess.split('-')[0]!;
+      const match = this.#locales.find((l) => l.startsWith(prefix));
+      if (match) return match;
+    }
+
+    return this.#locales[0]!;
   }
 
   /**
@@ -226,29 +269,20 @@ export class SayKit {
    * @returns The translation string for the descriptor
    * @throws If no locale is active
    * @throws If no messages are available for the active locale
+   * @throws If descriptor id is not found
    */
-  call(descriptor: { id: string; [key: string | number]: unknown }) {
+  call(descriptor: { id: string; [match: string | number]: unknown }) {
     return this.#call(this.locale, this.messages, descriptor);
   }
 
-  /**
-   * Get the translation for a descriptor.
-   *
-   * @param locale Relevant locale
-   * @param messages Relevant messages
-   * @param descriptor Descriptor to get the translation for
-   * @returns The translation string for the descriptor
-   */
   #call(
-    locale: string,
-    messages: SayKit.Messages,
-    descriptor: Parameters<SayKit['call']>[0],
+    locale: Locale,
+    messages: Record<string, string>,
+    descriptor: { id: string; [match: string | number]: unknown },
   ) {
     const message = messages[descriptor.id];
-    if (!message) throw new Error(`Descriptor '${descriptor.id}' not found`);
-
     if (typeof message !== 'string')
-      throw new Error(`Descriptor '${descriptor.id}' is not a string`);
+      throw new Error(`Message for ${descriptor.id} is not a string`);
 
     const format = mf1ToMessage(locale, message);
     return String(format.format(descriptor));
@@ -256,11 +290,11 @@ export class SayKit {
 
   [Symbol.for('nodejs.util.inspect.custom')](
     _depth: number,
-    options: import('node:util').InspectOptionsStylized,
+    context: import('node:util').InspectContext,
     inspect: typeof import('node:util').inspect,
   ) {
     if (this.#active)
-      return `${this.constructor.name}<${inspect(this.#active, options)}> {}`;
+      return `${this.constructor.name}<${inspect(this.#active, context)}> {}`;
     else return `${this.constructor.name} {}`;
   }
 
@@ -290,7 +324,7 @@ export class SayKit {
     void _;
     void options;
     throw new Error(
-      "'SayKit#plural' is a macro and must be used with the relevant saykit plugin",
+      "'Say#plural' is a macro and must be used with the relevant saykit plugin",
     );
   }
 
@@ -320,7 +354,7 @@ export class SayKit {
     void _;
     void options;
     throw new Error(
-      "'SayKit#ordinal' is a macro and must be used with the relevant saykit plugin",
+      "'Say#ordinal' is a macro and must be used with the relevant saykit plugin",
     );
   }
 
@@ -348,7 +382,7 @@ export class SayKit {
     void _;
     void options;
     throw new Error(
-      "'SayKit#select' is a macro and must be used with the relevant saykit plugin",
+      "'Say#select' is a macro and must be used with the relevant saykit plugin",
     );
   }
 }

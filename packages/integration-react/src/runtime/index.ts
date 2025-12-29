@@ -6,11 +6,11 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import type { Disallow, NumeralOptions, SayKit, SelectOptions } from 'saykit';
+import type { Disallow, NumeralOptions, SelectOptions } from 'saykit';
 import { Renderer } from '~/components/renderer.js';
 import { type PropsWithJSXSafeKeys, resolveJsxSafePropKeys } from '~/types.js';
 
-declare function getSay(): SayKit;
+declare function GET_SAY(): import('saykit').ReadonlySay;
 
 /**
  * Render the translation for a descriptor.
@@ -32,7 +32,7 @@ export function Say(props: { id: string; [match: string]: unknown }) {
       },
     );
 
-  const say = getSay();
+  const say = GET_SAY();
   const descriptor = resolveJsxSafePropKeys(props);
 
   return createElement(Renderer, {

@@ -5,7 +5,7 @@ export default defineConfig({
   locales: ['en', 'fr'],
   buckets: [
     {
-      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}'],
       output: 'src/locales/{locale}/messages.{extension}',
     },
   ],

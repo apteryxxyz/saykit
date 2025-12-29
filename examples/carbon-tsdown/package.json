@@ -16,11 +16,10 @@
     "saykit": "workspace:^"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20251202.0",
+    "@cloudflare/workers-types": "^4.20251228.0",
     "@saykit/config": "workspace:^",
+    "typescript": "^5.9.3",
     "unplugin-saykit": "workspace:^",
-    "ts-patch": "^3.3.0",
-    "typescript": "5.9.3",
-    "wrangler": "4.52.1"
+    "wrangler": "^4.54.0"
   }
 }

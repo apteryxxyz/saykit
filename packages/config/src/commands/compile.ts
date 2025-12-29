@@ -25,33 +25,33 @@ export default new Command()
     logger.header('📦 Compiling Messages');
 
     const watchers = [];
-    for (const catalogue of config.buckets) {
-      const watcher = await processCatalogue(catalogue, config, options);
+    for (const bucket of config.buckets) {
+      const watcher = await processBucket(bucket, config, options);
       watchers.push(watcher());
     }
     await Promise.allSettled(watchers);
   });
 
-async function processCatalogue(
-  catalogue: output<typeof Bucket>,
+async function processBucket(
+  bucket: output<typeof Bucket>,
   config: output<typeof Configuration>,
   options: { watch: boolean },
 ) {
   const cache = new Map<string, Record<string, string>>();
   const logger = loggerStorage.getStore()!;
 
-  logger.info(`Processing catalogue: ${catalogue.include}`);
+  logger.info(`Processing bucket: ${bucket.include}`);
 
   async function writeLocaleMessages(locale: string) {
-    const [, messages] = await readMessages(catalogue, locale);
+    const [, messages] = await readMessages(bucket, locale);
     logger.step(`Loaded ${Object.keys(messages).length} message(s)`);
 
     const translations = //
-      await hydrateMessages(cache, config, catalogue, locale, messages);
+      await hydrateMessages(cache, config, bucket, locale, messages);
     logger.step(`Hydrated for ${Object.keys(translations).length} message(s)`);
 
     logger.step('Writing runtime file');
-    await writeTranslations(catalogue, locale, translations);
+    await writeTranslations(bucket, locale, translations);
   }
 
   for (const locale of config.locales) {
@@ -66,13 +66,13 @@ async function processCatalogue(
       logger.info(
         `Watching for changes to ${relative(
           process.cwd(),
-          resolveOutputFilePath(catalogue, '{locale}'),
+          resolveOutputFilePath(bucket, '{locale}'),
         )}`,
       );
 
       await Promise.allSettled(
         config.locales.map(async (locale) => {
-          const path = resolveOutputFilePath(catalogue, locale);
+          const path = resolveOutputFilePath(bucket, locale);
           for await (const event of watchDebounce(path)) {
             cache.delete(locale);
             logger.info(`Detected change in ${event.filename}`);
@@ -87,13 +87,13 @@ async function processCatalogue(
 async function hydrateMessages(
   cache: Map<string, Record<string, string>>,
   config: output<typeof Configuration>,
-  catalogue: output<typeof Bucket>,
+  bucket: output<typeof Bucket>,
   locale: string,
   messages: Record<string, Formatter.Message>,
 ) {
   if (cache.has(locale)) return cache.get(locale)!;
   const translations = //
-    await applyFallbacks(cache, config, catalogue, locale, messages);
+    await applyFallbacks(cache, config, bucket, locale, messages);
   cache.set(locale, translations);
   return translations;
 }
@@ -101,7 +101,7 @@ async function hydrateMessages(
 async function applyFallbacks(
   cache: Map<string, Record<string, string>>,
   config: output<typeof Configuration>,
-  catalogue: output<typeof Bucket>,
+  bucket: output<typeof Bucket>,
   locale: string,
   messages: Record<string, Formatter.Message>,
 ) {
@@ -119,7 +119,7 @@ async function applyFallbacks(
 
     for (const fallback of fallbacks) {
       const fallbackMessages = //
-        await hydrateMessages(cache, config, catalogue, fallback, messages);
+        await hydrateMessages(cache, config, bucket, fallback, messages);
       if (fallbackMessages[id]) {
         translations[id] = fallbackMessages[id];
         break;
@@ -131,11 +131,11 @@ async function applyFallbacks(
 }
 
 async function writeTranslations(
-  catalogue: output<typeof Bucket>,
+  bucket: output<typeof Bucket>,
   locale: string,
   translations: Record<string, string>,
 ) {
-  const outputPath = resolveOutputFilePath(catalogue, locale, 'json');
+  const outputPath = resolveOutputFilePath(bucket, locale, 'json');
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, JSON.stringify(translations, null, 2));
 }

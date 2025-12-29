@@ -1,13 +1,11 @@
 import { writeFile } from 'node:fs/promises';
 import { defineConfig } from 'tsdown';
-import { toJSONSchema } from 'zod';
 
 export default defineConfig({
   entry: ['src/index.ts', 'src/commands/index.ts'],
-
   async onSuccess() {
     const { Configuration } = await import('./src/shapes.ts');
-    const schema = toJSONSchema(Configuration, {
+    const schema = Configuration.toJSONSchema({
       target: 'draft-7',
       io: 'input',
       unrepresentable: 'any',

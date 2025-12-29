@@ -1,11 +1,8 @@
-import { init } from '../../i18n';
+import { withSay } from '../../i18n';
 import ClientComponent from './client-component';
 import ServerComponent from './server-component';
 
-export default async function HomePage({ params }: PageProps<'/[locale]'>) {
-  const { locale } = await params;
-  await init(locale);
-
+function HomePage(_: PageProps<'/[locale]'>) {
   return (
     <main>
       <div style={{ border: '1px solid red' }}>
@@ -18,3 +15,5 @@ export default async function HomePage({ params }: PageProps<'/[locale]'>) {
     </main>
   );
 }
+
+export default withSay(HomePage, (p) => p.params.then((p) => p.locale));

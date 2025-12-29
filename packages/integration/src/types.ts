@@ -1,3 +1,5 @@
+export type Tuple = [any, ...any[]];
+
 export type Disallow<T, K extends PropertyKey> = T & Partial<Record<K, never>>;
 
 export type Awaitable<T> = T | PromiseLike<T>;

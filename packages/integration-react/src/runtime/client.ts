@@ -7,14 +7,14 @@ import {
   useContext,
   useState,
 } from 'react';
-import { type ReadonlySayKit, SayKit } from 'saykit';
+import { type ReadonlySay, Say } from 'saykit';
 
-type SayKitRef = { current: ReadonlySayKit | null };
-const SayContext = createContext<SayKitRef>({ current: null });
+type SayRef = { current: ReadonlySay | null };
+const SayContext = createContext<SayRef>({ current: null });
 SayContext.displayName = 'SayContext';
 
 /**
- * Provide a localised {@link runtime.SayKit} instance to descendant **client** components via context.
+ * Provide a localised {@link runtime.Say} instance to descendant **client** components via context.
  * Must wrap any component tree using {@link useSay} or {@link Say}.
  *
  * @param props.locale The current locale
@@ -22,17 +22,15 @@ SayContext.displayName = 'SayContext';
  */
 export function SayProvider({
   locale,
-  locales,
   messages,
   children,
 }: PropsWithChildren<{
   locale: string;
-  locales: string[];
-  messages: SayKit.Messages;
+  messages: Say.Messages;
 }>) {
   const [say] = useState(() => {
-    const instance = new SayKit({});
-    for (const l of locales) instance.assign(l, messages);
+    const instance = new Say({ locales: [locale], loader: () => messages });
+    instance.load(locale);
     instance.activate(locale);
     return instance.freeze();
   });
@@ -45,10 +43,10 @@ export function SayProvider({
 }
 
 /**
- * Get the current {@link SayKit} **client** instance.
+ * Get the current {@link Say} **client** instance.
  * Must be called within a {@link SayProvider}.
  *
- * @returns The current {@link SayKit} instance
+ * @returns The current {@link Say} instance
  * @throws If no provider is in the component tree
  */
 export function useSay() {

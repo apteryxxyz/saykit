@@ -2,7 +2,7 @@ import type * as t from '@babel/types';
 import { convertMessageToIcu } from './convert.js';
 import { generateHash } from './hash.js';
 
-class Base {
+abstract class Base {
   toICUString(this: Message) {
     return convertMessageToIcu(this);
   }

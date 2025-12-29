@@ -33,24 +33,24 @@ export default new Command()
     logger.header('🛠 Extracting Messages');
 
     const watchers = [];
-    for (const catalogue of config.buckets) {
-      const watcher = await processCatalogue(catalogue, config, options);
+    for (const bucket of config.buckets) {
+      const watcher = await processBucket(bucket, config, options);
       watchers.push(watcher());
     }
     await Promise.allSettled(watchers);
   });
 
-async function processCatalogue(
-  catalogue: output<typeof Bucket>,
+async function processBucket(
+  bucket: output<typeof Bucket>,
   config: output<typeof Configuration>,
   options: { watch: boolean },
 ) {
   const logger = loggerStorage.getStore()!;
-  logger.info(`Processing catalogue: ${catalogue.include}`);
+  logger.info(`Processing bucket: ${bucket.include}`);
 
   //
 
-  const paths = await globCatalogue(catalogue);
+  const paths = await globBucket(bucket);
   logger.step(`Found ${paths.length} file(s)`);
 
   //
@@ -79,7 +79,7 @@ async function processCatalogue(
     for (const locale of config.locales) {
       logger.step(`Writing locale file for ${locale}`);
       const messages = mapMessages(...currentMessages());
-      await writeMessages(catalogue, locale, config.locales[0], messages);
+      await writeMessages(bucket, locale, config.locales[0], messages);
     }
   }
 
@@ -88,8 +88,8 @@ async function processCatalogue(
 
   return async () => {
     if (options.watch) {
-      logger.log(`👀 Watching for changes to ${catalogue.include}`);
-      const matcher = pm(catalogue.include, { ignore: catalogue.exclude });
+      logger.log(`👀 Watching for changes to ${bucket.include}`);
+      const matcher = pm(bucket.include, { ignore: bucket.exclude });
 
       for await (const event of watchDebounce(process.cwd(), {
         recursive: true,
@@ -104,10 +104,10 @@ async function processCatalogue(
   };
 }
 
-async function globCatalogue(catalogue: output<typeof Bucket>) {
+async function globBucket(bucket: output<typeof Bucket>) {
   const paths: string[] = [];
-  for await (const file of glob(catalogue.include, {
-    exclude: catalogue.exclude,
+  for await (const file of glob(bucket.include, {
+    exclude: bucket.exclude,
     withFileTypes: true,
   }))
     if (file.isFile()) paths.push(join(file.parentPath, file.name));
@@ -192,25 +192,25 @@ function mapMessages(...messages: Formatter.Message[]) {
 }
 
 export function resolveOutputFilePath(
-  catalogue: output<typeof Bucket>,
+  bucket: output<typeof Bucket>,
   locale: string,
-  extension = catalogue.formatter.extension,
+  extension = bucket.formatter.extension,
 ) {
   return resolve(
-    catalogue.output
+    bucket.output
       .replaceAll('{locale}', locale)
       .replaceAll('{extension}', extension),
   );
 }
 
 export async function readMessages(
-  catalogue: output<typeof Bucket>,
+  bucket: output<typeof Bucket>,
   locale: string,
-  path = resolveOutputFilePath(catalogue, locale),
+  path = resolveOutputFilePath(bucket, locale),
 ) {
   const content = await readFile(path, 'utf8').catch(() => undefined);
   const messages =
-    (content && (await catalogue.formatter.parse(content, { locale }))) || [];
+    (content && (await bucket.formatter.parse(content, { locale }))) || [];
   return [content, mapMessages(...messages)] as const;
 }
 
@@ -238,24 +238,24 @@ function updateMessages(
 }
 
 async function writeMessages(
-  catalogue: output<typeof Bucket>,
+  bucket: output<typeof Bucket>,
   locale: string,
   sourceLocale: string,
   newMessages: Record<string, Formatter.Message>,
 ) {
   const [existingContent, existingMessages] = //
-    await readMessages(catalogue, locale);
+    await readMessages(bucket, locale);
 
   const messages =
     locale !== sourceLocale
       ? updateMessages(existingMessages, newMessages)
       : newMessages;
-  const content = await catalogue.formatter.stringify(Object.values(messages), {
+  const content = await bucket.formatter.stringify(Object.values(messages), {
     locale,
     previousContent: existingContent,
   });
 
-  const outputPath = resolveOutputFilePath(catalogue, locale);
+  const outputPath = resolveOutputFilePath(bucket, locale);
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, content);
 }

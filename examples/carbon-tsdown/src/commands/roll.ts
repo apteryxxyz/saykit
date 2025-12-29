@@ -6,11 +6,11 @@ import {
   type CommandInteraction,
   Row,
 } from '@buape/carbon';
-import { saykit } from '@saykit/carbon';
-import type { SayKit } from 'saykit';
+import { withSay } from '@saykit/carbon';
+import type { Say } from 'saykit';
 
-export class RollCommand extends saykit(Command) {
-  constructor(say: SayKit) {
+export class RollCommand extends withSay(Command) {
+  constructor(say: Say) {
     super(say, (say) => ({
       name: say`roll`,
       description: say`Roll the dice!`,
@@ -36,9 +36,9 @@ export class RollCommand extends saykit(Command) {
   }
 }
 
-export class RollAgainButton extends saykit(Button) {
+export class RollAgainButton extends withSay(Button) {
   customId = 'roll-again';
-  constructor(say: SayKit, sides?: number) {
+  constructor(say: Say, sides?: number) {
     super({ label: say`Roll Again` });
     if (sides) this.customId = `roll-again:sides=${sides}`;
   }
@@ -48,7 +48,7 @@ export class RollAgainButton extends saykit(Button) {
     const sides = Number(data.sides ?? 6);
     const result = Math.floor(Math.random() * sides) + 1;
 
-    await interaction.reply({
+    await interaction.update({
       content: interaction.say`The dice rolled ${result}!`,
       components: [new Row([new RollAgainButton(interaction.say, sides)])],
     });

@@ -1,26 +1,26 @@
 {
   "name": "root",
   "private": true,
-  "packageManager": "pnpm@10.24.0",
+  "packageManager": "pnpm@10.26.2",
   "workspaces": ["examples/*", "packages/*"],
   "scripts": {
     "check": "turbo run check",
     "lint": "turbo run lint && biome lint .",
-    "format": "turbo run format && biome format . --write",
+    "format": "turbo run format && biome check . --write",
     "test": "turbo run test",
     "build": "turbo run build --filter=\"./packages/*\"",
     "dev": "turbo watch build --filter=\"./packages/*\"",
     "prepare": "husky & ts-patch install"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.8",
-    "@types/node": "^24.10.1",
+    "@biomejs/biome": "^2.3.10",
+    "@types/node": "^25.0.3",
     "husky": "^9.1.7",
     "ts-patch": "^3.3.0",
-    "tsdown": "^0.16.8",
-    "turbo": "^2.6.2",
+    "tsdown": "^0.18.3",
+    "turbo": "^2.7.2",
     "typescript": "^5.9.3",
     "typescript-transform-paths": "^3.5.5",
-    "vitest": "^4.0.15"
+    "vitest": "^4.0.16"
   }
 }

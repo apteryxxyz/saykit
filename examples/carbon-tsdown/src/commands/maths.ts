@@ -4,11 +4,11 @@ import {
   type CommandInteraction,
   CommandWithSubcommands,
 } from '@buape/carbon';
-import { saykit } from '@saykit/carbon';
-import type { SayKit } from 'saykit';
+import { withSay } from '@saykit/carbon';
+import type { Say } from 'saykit';
 
-class AddCommand extends saykit(Command) {
-  constructor(say: SayKit) {
+class AddCommand extends withSay(Command) {
+  constructor(say: Say) {
     super(say, (say) => ({
       name: say`add`,
       description: say`Add two numbers!`,
@@ -39,8 +39,8 @@ class AddCommand extends saykit(Command) {
   }
 }
 
-class SubtractCommand extends saykit(Command) {
-  constructor(say: SayKit) {
+class SubtractCommand extends withSay(Command) {
+  constructor(say: Say) {
     super(say, (say) => ({
       name: say`subtract`,
       description: say`Subtract two numbers!`,
@@ -71,8 +71,8 @@ class SubtractCommand extends saykit(Command) {
   }
 }
 
-export class MathsCommand extends saykit(CommandWithSubcommands) {
-  constructor(say: SayKit) {
+export class MathsCommand extends withSay(CommandWithSubcommands) {
+  constructor(say: Say) {
     super(say, (say) => ({
       name: say`maths`,
       description: say`Maths commands!`,

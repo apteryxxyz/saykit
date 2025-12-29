@@ -1,13 +1,14 @@
-import { type NextRequest, NextResponse } from 'next/server.js';
+// TODO: abstract this away into @saykit/react/server, @saykit/next or something
 
-const saykit = { sourceLocale: 'en', locales: ['en', 'fr'] };
+import { type NextRequest, NextResponse } from 'next/server';
+import saykitConfig from '../saykit.config';
 
 export default function proxy(request: NextRequest) {
   let respondWith = NextResponse.next();
 
-  const defaultLocale = saykit.sourceLocale;
+  const defaultLocale = saykitConfig.sourceLocale;
   let pathLocale = fromUrlPathname(request.nextUrl.pathname);
-  if (pathLocale && !saykit.locales.includes(pathLocale))
+  if (pathLocale && !saykitConfig.locales.includes(pathLocale))
     pathLocale = undefined;
 
   if (pathLocale === defaultLocale) {
@@ -18,24 +19,24 @@ export default function proxy(request: NextRequest) {
   }
   //
   else if (!pathLocale) {
-    let requestLocale = fromRequestCookies(request.cookies) ?? defaultLocale;
-    if (!saykit.locales.includes(requestLocale)) requestLocale = defaultLocale;
+    let cookieLocale = fromRequestCookies(request.cookies) ?? defaultLocale;
+    if (!saykitConfig.locales.includes(cookieLocale))
+      cookieLocale = defaultLocale;
 
-    request.nextUrl.pathname = `/${requestLocale}${request.nextUrl.pathname}`;
-
-    if (requestLocale === defaultLocale) {
+    request.nextUrl.pathname = `/${cookieLocale}${request.nextUrl.pathname}`;
+    if (cookieLocale === defaultLocale) {
       // Rewrite / to /{defaultLocale}
       respondWith = NextResponse.rewrite(request.nextUrl);
     } else {
-      // Redirect / to /{requestLocale}
+      // Redirect / to /{cookieLocale}
       respondWith = NextResponse.redirect(request.nextUrl);
     }
   }
 
   respondWith.cookies.set(
-    'preferred-locale',
-    pathLocale ?? defaultLocale, //
-    { maxAge: 60 * 60 * 24 * 365, path: '/' },
+    'x-preferred-locale', //
+    pathLocale ?? defaultLocale,
+    { maxAge: 60 * 60 * 24 * 365, path: '/', sameSite: 'lax' },
   );
 
   return respondWith;
@@ -57,7 +58,7 @@ function fromUrlPathname(pathname: string, partIndex = 0) {
 
 function fromRequestCookies(
   cookies: NextRequest['cookies'],
-  key = 'preferred-locale',
+  key = 'x-preferred-locale',
 ) {
   const value = cookies.get(key)?.value;
   if (value?.match(LOCALE)) return value;

@@ -1,9 +1,9 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { defineConfig } from 'tsdown';
 
-const serverImport = 'import { getSay } from "./server.mjs";';
-const clientImport =
-  '"use client"; import { useSay as getSay } from "./client.mjs";';
+const CLIENT_IMPORT =
+  '"use client"; import { useSay as GET_SAY } from "./client.mjs";';
+const SERVER_IMPORT = 'import { getSay as GET_SAY } from "./server.mjs";';
 
 export default defineConfig({
   entry: [
@@ -11,11 +11,12 @@ export default defineConfig({
     'src/runtime/client.ts',
     'src/runtime/server.ts',
   ],
+  target: 'es2020',
   async onSuccess() {
-    const indexMjs = await readFile('dist/index.mjs', 'utf8');
-    const indexServerMjs = serverImport + indexMjs;
-    await writeFile('dist/index.server.mjs', indexServerMjs);
-    const indexClientMjs = clientImport + indexMjs;
-    await writeFile('dist/index.mjs', indexClientMjs);
+    const indexClientMjs = await readFile('dist/index.mjs', 'utf8');
+    await writeFile('dist/index.client.mjs', CLIENT_IMPORT + indexClientMjs);
+    const indexServerMjs = await readFile('dist/index.mjs', 'utf8');
+    await writeFile('dist/index.server.mjs', SERVER_IMPORT + indexServerMjs);
+    await rm('dist/index.mjs');
   },
 });

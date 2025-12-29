@@ -1,6 +1,7 @@
 import { Client } from '@buape/carbon';
 import { createHandler } from '@buape/carbon/adapters/fetch';
-import { SayKitPlugin } from '@saykit/carbon';
+import { CommandDataPlugin } from '@buape/carbon/command-data';
+import { SayPlugin } from '@saykit/carbon';
 import { AboutCommand, AboutModal } from './commands/about.js';
 import { MathsCommand } from './commands/maths.js';
 import { PingCommand } from './commands/ping.js';
@@ -24,7 +25,7 @@ const client = new Client(
     ],
     components: [new RollAgainButton(say)],
   },
-  [new SayKitPlugin(say)],
+  [new SayPlugin(say), new CommandDataPlugin()],
 );
 for (const modal of [new AboutModal(say)])
   client.modalHandler.registerModal(modal);

@@ -1,22 +1,25 @@
 import { SayProvider } from '@saykit/react/client';
-import say, { init } from '../../i18n';
+import type { Say } from 'saykit';
+import say, { withSay } from '../../i18n';
 
 export function generateStaticParams() {
-  return say.locales.map((l) => ({ locale: l }));
+  return say.map(([, l]) => ({ locale: l }));
 }
 
-export default async function RootLayout({
-  params,
+async function RootLayout({
+  locale,
+  messages,
   children,
-}: LayoutProps<'/[locale]'>) {
-  const { locale } = await params;
-  await init(locale);
-
+}: LayoutProps<'/[locale]'> & { locale: string; messages: Say.Messages }) {
   return (
     <html lang={locale}>
       <body>
-        <SayProvider {...say}>{children}</SayProvider>
+        <SayProvider locale={locale} messages={messages}>
+          {children}
+        </SayProvider>
       </body>
     </html>
   );
 }
+
+export default withSay(RootLayout, (p) => p.params.then((p) => p.locale));

@@ -1,5 +1,5 @@
 import { BaseCommand, BaseComponent, Modal } from '@buape/carbon';
-import type { SayKit } from 'saykit';
+import type { Say } from 'saykit';
 import { combineCommandOptions } from '~/utils/combine-command-options.js';
 
 type Keys =
@@ -15,30 +15,25 @@ type Keys =
   | 'subcommandGroups';
 
 type AbstractConstructor<
-  // biome-ignore lint/suspicious/noExplicitAny: any
   Args extends any[] = any[],
   Instance extends object = object,
 > = abstract new (...args: Args) => Instance;
 
 const ClassMap = new WeakMap<AbstractConstructor, AbstractConstructor>();
 
-type SayKitProps<T> = Pick<T, Extract<keyof T, Keys>>;
+type SayProps<T> = Pick<T, Extract<keyof T, Keys>>;
 
 /**
  * Enhances a {@link BaseCommand} subclass with support for localisation.
  *
  * @param Base Abstract command constructor to extend.
- * @returns A new constructor that accepts a {@link SayKit} instance, a
+ * @returns A new constructor that accepts a {@link Say} instance, a
  * properties-mapping function, and the original constructor arguments.
  */
-export function saykit<Args extends unknown[], Instance extends BaseCommand>(
+export function withSay<Args extends unknown[], Instance extends BaseCommand>(
   Base: AbstractConstructor<Args, Instance>,
 ): AbstractConstructor<
-  [
-    say: SayKit,
-    properties: (say: SayKit) => SayKitProps<Instance>,
-    ...args: Args,
-  ],
+  [say: Say, properties: (say: Say) => SayProps<Instance>, ...args: Args],
   Instance & Partial<Record<Keys, unknown>>
 >;
 
@@ -49,37 +44,37 @@ export function saykit<Args extends unknown[], Instance extends BaseCommand>(
  * @param Base Abstract component or modal constructor to extend.
  * @returns A new constructor that accepts a set of properties.
  */
-export function saykit<
+export function withSay<
   Args extends unknown[],
   Instance extends BaseComponent | Modal,
 >(
   Base: AbstractConstructor<Args, Instance>,
 ): AbstractConstructor<
-  [properties: SayKitProps<Instance>, ...args: Args],
+  [properties: SayProps<Instance>, ...args: Args],
   Instance & Partial<Record<Keys, unknown>>
 >;
 
 /**
- * Factory function that creates a "saykit" wrapper around a base class.
+ * Factory function that creates a "withSay" wrapper around a base class.
  *
  * @param Base The base class constructor.
  * @returns A subclass of the given base class with extra for localisation.
  * @throws If the base class is neither a {@link BaseCommand} nor a
  * {@link BaseComponent}.
  */
-export function saykit<Args extends unknown[], Instance extends object>(
+export function withSay<Args extends unknown[], Instance extends object>(
   Base: AbstractConstructor<Args, Instance>,
 ) {
   if (ClassMap.has(Base)) return ClassMap.get(Base)!;
 
   if (Base.prototype instanceof BaseCommand) {
-    const Derived = createSayKitCommand(Base as typeof BaseCommand);
+    const Derived = createSayCommand(Base as typeof BaseCommand);
     ClassMap.set(Base, Derived);
     return Derived;
   }
 
   if (Base.prototype instanceof BaseComponent || Base === Modal) {
-    const Derived = createSayKitComponent(Base as typeof BaseComponent);
+    const Derived = createSayComponent(Base as typeof BaseComponent);
     ClassMap.set(Base, Derived);
     return Derived;
   }
@@ -87,41 +82,37 @@ export function saykit<Args extends unknown[], Instance extends object>(
   throw new Error('Invalid base class');
 }
 
-function createSayKitCommand<
-  Args extends unknown[],
-  Instance extends BaseCommand,
->(Base: AbstractConstructor<Args, Instance>) {
+function createSayCommand<Args extends unknown[], Instance extends BaseCommand>(
+  Base: AbstractConstructor<Args, Instance>,
+) {
   // @ts-expect-error - abstract
-  abstract class SayKitCommand extends Base {
+  abstract class SayCommand extends Base {
     constructor(
-      say: SayKit,
-      properties: (
-        say: SayKit,
-      ) => Pick<Instance, Extract<keyof Instance, Keys>>,
+      say: Say,
+      properties: (say: Say) => Pick<Instance, Extract<keyof Instance, Keys>>,
       ...args: Args
     ) {
       super(...args);
 
-      const records = {};
-      for (const locale of say.locales) {
-        const s = say.clone().activate(locale);
-        Reflect.set(records, locale, properties(s));
-      }
+      const records = say.reduce<Record<string, any>>((acc, [s, l]) => {
+        acc[l] = properties(s);
+        return acc;
+      }, {});
 
       const options = combineCommandOptions(records, say.locale);
       Object.assign(this, options);
     }
   }
 
-  return SayKitCommand;
+  return SayCommand;
 }
 
-function createSayKitComponent<
+function createSayComponent<
   Args extends unknown[],
   Instance extends BaseComponent | Modal,
 >(Base: AbstractConstructor<Args, Instance>) {
   // @ts-expect-error - abstract, unions
-  abstract class SayKitComponent extends Base {
+  abstract class SayComponent extends Base {
     constructor(
       properties?: Pick<Instance, Extract<keyof Instance, Keys>>,
       ...args: Args
@@ -131,5 +122,5 @@ function createSayKitComponent<
     }
   }
 
-  return SayKitComponent;
+  return SayComponent;
 }
